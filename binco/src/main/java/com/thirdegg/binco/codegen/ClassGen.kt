@@ -20,6 +20,15 @@ class ClassGen(
 
     companion object {
 
+        private fun getStaticId(message: InterfaceMessage): TypeSpec {
+            return TypeSpec.companionObjectBuilder()
+                .addProperty(PropertySpec.builder("BINCO_ID", Int::class)
+                    .initializer("${message.id}")
+                    .build())
+                .build()
+        }
+
+
         private fun getId(message: InterfaceMessage): FunSpec {
             return FunSpec.builder("getBincoId")
                 .addModifiers(KModifier.OVERRIDE)
@@ -98,6 +107,7 @@ class ClassGen(
                     }
                 }
                 .addSuperinterface(ClassName(BincoProcessor.BINCO_PKG, "BincoInterface"))
+                .addType(getStaticId(message))
                 .addFunction(getId(message))
                 .addFunction(toBin(message))
                 .addFunction(toMessage(message))

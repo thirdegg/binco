@@ -28,6 +28,6 @@ fun main() {
 
 //    val a = (BincoDecoder.decode(data) as DataBin)
     val a = (BincoDecoder.decode(DataBin.StatusBin.ERROR.toMessage()) as DataBin.StatusBin)
-    println(a)
+    println(DataBin.StatusBin.BINCO_ID == a.getBincoId())
 
 }

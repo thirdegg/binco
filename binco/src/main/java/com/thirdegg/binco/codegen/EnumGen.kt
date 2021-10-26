@@ -22,6 +22,14 @@ class EnumGen(
 
     companion object {
 
+        private fun getStaticId(message: EnumMessage): TypeSpec {
+            return TypeSpec.companionObjectBuilder()
+                .addProperty(PropertySpec.builder("BINCO_ID", Int::class)
+                    .initializer("${message.id}")
+                    .build())
+                .build()
+        }
+
         private fun getId(message: EnumMessage): FunSpec {
             return FunSpec.builder("getBincoId")
                 .addModifiers(KModifier.OVERRIDE)
@@ -98,6 +106,7 @@ class EnumGen(
                         }
                     }
                 }
+                .addType(getStaticId(message))
                 .addFunction(getId(message))
                 .addFunction(toBin(message, prefix, postfix))
                 .addFunction(toMessage(message))
