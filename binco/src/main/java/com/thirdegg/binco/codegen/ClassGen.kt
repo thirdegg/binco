@@ -2,6 +2,7 @@ package com.thirdegg.binco.codegen
 
 import com.squareup.kotlinpoet.*
 import com.thirdegg.binco.BincoProcessor
+import com.thirdegg.binco.entries.EnumMessage
 import com.thirdegg.binco.entries.InterfaceMessage
 import com.thirdegg.binco.entries.Type.Companion.getCorrectName
 
@@ -11,31 +12,39 @@ class ClassGen(
     private val postfix: String
 ) {
 
-    private fun getId(): FunSpec {
-        return FunSpec.builder("getBincoId")
-            .addModifiers(KModifier.OVERRIDE)
-            .returns(Int::class)
-            .addStatement("return ${message.id}")
-            .build()
+    fun build(): FileSpec {
+        return FileSpec.builder(message.type.pkg, "${prefix}${message.type.className}${postfix}")
+            .addImport(BincoProcessor.BINCO_PKG, "DecodeUtils")
+            .addType(makeTypeBody(message, prefix, postfix)).build()
     }
 
-    private fun toBin(): FunSpec {
-        return FunSpec.builder("toBin")
-            .addModifiers(KModifier.OVERRIDE)
-            .returns(ByteArray::class)
-            .addStatement("val data = ArrayList<Byte>()")
-            .addCode(message.getEncodeCode())
-            .addStatement("return data.toByteArray()")
-            .build()
-    }
+    companion object {
 
-    private fun toMessage(): FunSpec {
-        return FunSpec.builder("toMessage")
-            .addModifiers(KModifier.OVERRIDE)
-            .returns(ByteArray::class)
-            .addStatement("val data = ArrayList<Byte>()")
-            .addStatement(
-                """
+        private fun getId(message: InterfaceMessage): FunSpec {
+            return FunSpec.builder("getBincoId")
+                .addModifiers(KModifier.OVERRIDE)
+                .returns(Int::class)
+                .addStatement("return ${message.id}")
+                .build()
+        }
+
+        private fun toBin(message: InterfaceMessage): FunSpec {
+            return FunSpec.builder("toBin")
+                .addModifiers(KModifier.OVERRIDE)
+                .returns(ByteArray::class)
+                .addStatement("val data = ArrayList<Byte>()")
+                .addCode(message.getEncodeCode())
+                .addStatement("return data.toByteArray()")
+                .build()
+        }
+
+        private fun toMessage(message: InterfaceMessage): FunSpec {
+            return FunSpec.builder("toMessage")
+                .addModifiers(KModifier.OVERRIDE)
+                .returns(ByteArray::class)
+                .addStatement("val data = ArrayList<Byte>()")
+                .addStatement(
+                    """
                 DecodeUtils.shortToBin(${message.id}.toShort()).forEach {
                     data.add(it)
                 }
@@ -47,50 +56,54 @@ class ClassGen(
                 return data.toByteArray()
                 
             """.trimIndent()
-            )
-            .build()
-    }
+                )
+                .build()
+        }
 
-    fun build(): FileSpec {
-        return FileSpec.builder(message.type.pkg, "${prefix}${message.type.className}${postfix}")
-            .addImport(BincoProcessor.BINCO_PKG, "DecodeUtils")
-            .addType(
-                TypeSpec.classBuilder("${prefix}${message.type.className}${postfix}")
-                    .primaryConstructor(
-                        FunSpec.constructorBuilder().apply {
-                            message.getSortedFields().forEach {
-                                addParameter(it.getFieldName(), it.type.getCorrectName(prefix, postfix))
-                            }
-                        }.build()
-                    )
-                    .apply {
+        fun makeTypeBody(message: InterfaceMessage, prefix: String, postfix: String):TypeSpec {
+            return TypeSpec.classBuilder("${prefix}${message.type.className}${postfix}")
+                .primaryConstructor(
+                    FunSpec.constructorBuilder().apply {
                         message.getSortedFields().forEach {
-                            addProperty(
-                                PropertySpec.builder(it.getFieldName(), it.type.getCorrectName(prefix, postfix))
+                            addParameter(it.getFieldName(), it.type.getCorrectName(prefix, postfix))
+                        }
+                    }.build()
+                )
+                .apply {
+                    message.getSortedFields().forEach {
+                        addProperty(
+                            PropertySpec.builder(it.getFieldName(), it.type.getCorrectName(prefix, postfix))
                                 .initializer(it.getFieldName())
                                 .addModifiers(KModifier.PRIVATE)
                                 .build()
-                            )
-                            addFunction(
-                                FunSpec.builder(it.getterMethodName)
-                                    .addModifiers(KModifier.OVERRIDE)
-                                    .addCode(
-                                        """
-                                            return ${it.getFieldName()}
-                                            
-                                        """.trimIndent()
-                                    ).returns(it.type.getCorrectName(prefix, postfix))
-                                    .build()
-                            )
+                        )
+                        addFunction(
+                            FunSpec.builder(it.getterMethodName)
+                                .addCode(
+                                    """
+                                    return ${it.getFieldName()}
+                                    
+                                """.trimIndent()
+                                ).returns(it.type.getCorrectName(prefix, postfix))
+                                .build()
+                        )
+                    }
+                    message.childs.forEach {
+                        if (it is InterfaceMessage) {
+                            addType(makeTypeBody(it, prefix, postfix))
+                        }
+                        if (it is EnumMessage) {
+                            addType(EnumGen.makeTypeBody(it, prefix, postfix))
                         }
                     }
-                    .addSuperinterface(ClassName(message.type.pkg, message.type.className))
-                    .addSuperinterface(ClassName(BincoProcessor.BINCO_PKG, "BincoInterface"))
-                    .addFunction(getId())
-                    .addFunction(toBin())
-                    .addFunction(toMessage())
-                    .build()
-            ).build()
+                }
+                .addSuperinterface(ClassName(BincoProcessor.BINCO_PKG, "BincoInterface"))
+                .addFunction(getId(message))
+                .addFunction(toBin(message))
+                .addFunction(toMessage(message))
+                .build()
+        }
+
     }
 
 }

@@ -5,6 +5,8 @@ import com.thirdegg.binco.BincoProcessor
 import com.thirdegg.binco.entries.EnumMessage
 import com.thirdegg.binco.entries.InterfaceMessage
 import com.thirdegg.binco.entries.MessageEntry
+import com.thirdegg.binco.entries.Type.Companion.getCorrectName
+import java.lang.IllegalStateException
 
 class DecoderGen(
     private val messages: List<MessageEntry>,
@@ -12,16 +14,69 @@ class DecoderGen(
     private val postfix: String
 ) {
 
-    private fun fromBin(message: InterfaceMessage):FunSpec {
-        return FunSpec.builder("fromBin${message.type.escapedClassName}")
-            .addModifiers(KModifier.PRIVATE)
-            .addParameter("arr", ByteArray::class)
-            .addParameter("offset", Int::class)
-            .returns(ClassName(message.type.pkg, "${prefix}${message.type.className}${postfix}"))
-            .addStatement("var offset = offset")
-            .addCode(message.getDecodeCode(prefix, postfix))
-            .addStatement("return ${prefix}${message.type.className}${postfix}(${message.fields.mapIndexed { i, _ -> "var$i" }.joinToString(",")})")
-            .build()
+    private fun fromBin(message: MessageEntry):FunSpec {
+        when (message) {
+            is InterfaceMessage -> {
+                return FunSpec.builder("fromBin${message.type.escapedClassName}")
+                    .addModifiers(KModifier.PRIVATE)
+                    .addParameter("arr", ByteArray::class)
+                    .addParameter("offset", Int::class)
+                    .returns(message.type.getCorrectName(prefix, postfix))
+                    .addStatement("var offset = offset")
+                    .addCode(message.getDecodeCode(prefix, postfix))
+                    .addStatement("return ${prefix}${message.type.className}${postfix}(${message.fields.mapIndexed { i, _ -> "var$i" }.joinToString(",")})")
+                    .build()
+            }
+            is EnumMessage -> {
+                return FunSpec.builder("fromBin${message.type.escapedClassName}")
+                    .addModifiers(KModifier.PRIVATE)
+                    .addParameter("arr", ByteArray::class)
+                    .addParameter("offset", Int::class)
+                    .returns(message.type.getCorrectName(prefix, postfix))
+                    .addStatement("var offset = offset")
+                    .addCode(message.getDecodeCode(prefix, postfix))
+                    .addStatement("return var0")
+                    .build()
+            }
+            else -> {
+                throw IllegalStateException()
+            }
+        }
+    }
+
+    private fun collectDecodeMessageCasesList(messages:List<MessageEntry>):List<String> {
+        val list = ArrayList<String>()
+        messages.forEach {
+            list.addAll(collectDecodeMessageCasesList(it.childs))
+            when (it) {
+                is InterfaceMessage -> {
+                    list.add("""
+                        ${it.id} -> {
+                            return fromBin${it.type.escapedClassName}(arr, offset)
+                        }
+                        
+                    """.trimIndent())
+                }
+                is EnumMessage -> {
+                    list.add("""
+                        ${it.id} -> {
+                            return fromBin${it.type.escapedClassName}(arr, offset)
+                        }
+                        
+                    """.trimIndent())
+                }
+            }
+        }
+        return list
+    }
+
+    private fun collectDecodeFuncs(messages:List<MessageEntry>):List<FunSpec> {
+        val list = ArrayList<FunSpec>()
+        messages.forEach {
+            list.addAll(collectDecodeFuncs(it.childs))
+            list.add(fromBin(it))
+        }
+        return list
     }
 
     fun build(): FileSpec {
@@ -29,10 +84,8 @@ class DecoderGen(
             .addImport(BincoProcessor.BINCO_PKG,"DecodeUtils")
             .addType(
                 TypeSpec.objectBuilder("BincoDecoder").apply {
-                    messages.forEach {
-                        if (it is InterfaceMessage) {
-                            addFunction(fromBin(it))
-                        }
+                    collectDecodeFuncs(messages).forEach {
+                        addFunction(it)
                     }
                 }.addFunction(
                         FunSpec.builder("decode")
@@ -46,20 +99,8 @@ class DecoderGen(
                                 
                             """.trimIndent())
                             .apply {
-                                messages.forEach {
-                                    when (it) {
-                                        is InterfaceMessage -> {
-                                            addCode("""
-                                                ${it.id} -> {
-                                                    return fromBin${it.type.escapedClassName}(arr, offset)
-                                                }
-                                                
-                                            """.trimIndent())
-                                        }
-                                        is EnumMessage -> {
-
-                                        }
-                                    }
+                                collectDecodeMessageCasesList(messages).forEach {
+                                    addCode(it)
                                 }
                             }.addCode("""
                                     else -> throw Exception("Message not found")

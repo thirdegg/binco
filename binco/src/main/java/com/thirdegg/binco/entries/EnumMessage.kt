@@ -1,16 +1,25 @@
 package com.thirdegg.binco.entries
 
+import com.squareup.kotlinpoet.CodeBlock
 import javax.lang.model.type.TypeMirror
 
 class EnumMessage(
     id: Int,
-    fullClassName: TypeMirror,
-    val fields: ArrayList<EnumField>
-): MessageEntry(
+    typeMirror: TypeMirror,
+    parentType: Type?,
+    val enumConsts: ArrayList<EnumConst>
+) : MessageEntry(
     id,
-    Type.EnumType(fullClassName, fields)
+    Type.EnumType(typeMirror, parentType, enumConsts)
 ) {
 
-    fun getSortedFields() = fields.sortedBy { it.id }
+    fun getSortedFields() = enumConsts.sortedBy { it.id }
 
+    override fun getEncodeCode(): CodeBlock {
+        return type.getEncodeCode("this")
+    }
+
+    override fun getDecodeCode(prefix: String, postfix: String):CodeBlock {
+        return type.getDecodeCode("this", "var0", prefix, postfix)
+    }
 }

@@ -10,6 +10,7 @@ import javax.annotation.processing.*
 import javax.lang.model.SourceVersion
 import javax.lang.model.element.*
 import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 import javax.tools.Diagnostic
 
@@ -55,14 +56,26 @@ class BincoProcessor : AbstractProcessor() {
                     }
                 }
 
-                messages.add(InterfaceMessage(id, element.asType(), ArrayList()))
+                if (element.enclosingElement.asType().kind == TypeKind.PACKAGE) {
+                    messages.add(InterfaceMessage(id, element.asType(), null, ArrayList()))
+                } else if (element.enclosingElement.asType().kind == TypeKind.DECLARED) {
+                    val parentClassName = element.enclosingElement.asType().toString()
+                    val parent = findMessage(parentClassName, messages)
+                    parent?.childs?.add(InterfaceMessage(id, element.asType(), parent.type, ArrayList()))?:throw Exception("Parent not found")
+                }
                 return@forEach
             }
 
             if (element.kind == ElementKind.ENUM) {
                 val id = element.getAnnotation(Binco::class.java).id
-                val fullClassName = element.asType().toString()
-                messages.add(EnumMessage(id, element.asType(), ArrayList()))
+                if (element.enclosingElement.asType().kind == TypeKind.PACKAGE) {
+                    messages.add(EnumMessage(id, element.asType(), null, ArrayList()))
+                } else if (element.enclosingElement.asType().kind == TypeKind.DECLARED) {
+                    val parentClassName = element.enclosingElement.asType().toString()
+                    val parent = findMessage(parentClassName, messages)
+                    parent?.childs?.add(EnumMessage(id, element.asType(), parent.type, ArrayList()))?:throw Exception("Parent not found")
+                }
+
                 return@forEach
             }
 
@@ -79,14 +92,11 @@ class BincoProcessor : AbstractProcessor() {
                 element as ExecutableElement
                 val id = element.getAnnotation(Binco.Field::class.java).id
                 val fullClassName = element.enclosingElement.asType().toString()
-                val returnType = element.returnType.toString()
                 val fieldName = element.simpleName.toString()
 
-                messages.find {
-                    it.type.fullClassName == fullClassName && it is InterfaceMessage
-                }?.run {
-                    this as InterfaceMessage
-                    for (field in fields) {
+                val message = findMessage(fullClassName, messages)
+                if (message is InterfaceMessage) {
+                    for (field in message.fields) {
                         if (field.id == id) {
                             val message = "Duplicate ID field: " + fullClassName + ":" + id + " " + field.id
                             processingEnv.messager.printMessage(Diagnostic.Kind.ERROR, message)
@@ -98,7 +108,7 @@ class BincoProcessor : AbstractProcessor() {
                     val field = InterfaceField(id, type, fieldName)
 
                     field.let { field ->
-                        this.fields.add(field)
+                        message.fields.add(field)
                     }
 
                 }
@@ -109,11 +119,9 @@ class BincoProcessor : AbstractProcessor() {
                 val id = element.getAnnotation(Binco.Field::class.java).id
                 val fullClassName = element.enclosingElement.asType().toString()
                 val fieldName = element.simpleName.toString()
-                messages.find {
-                    it.type.fullClassName == fullClassName && it is EnumMessage
-                }?.run {
-                    this as EnumMessage
-                    fields.add(EnumField(id, fieldName))
+                val message = findMessage(fullClassName, messages)
+                if (message is EnumMessage) {
+                    message.enumConsts.add(EnumConst(id, fieldName))
                 }
                 return@forEach
             }
@@ -128,6 +136,11 @@ class BincoProcessor : AbstractProcessor() {
         try {
             writeClass(UtilsGen().build())
             writeClass(InterfaceGen().build())
+            messages.forEach {
+                if (it is EnumMessage) {
+                    writeClass(EnumGen(it, "", POSTFIX).build())
+                }
+            }
             messages.forEach {
                 if (it is InterfaceMessage) {
                     writeClass(ClassGen(it, "", POSTFIX).build())
@@ -145,27 +158,38 @@ class BincoProcessor : AbstractProcessor() {
     private fun getType(typeMirror:TypeMirror): Type {
         when {
             Type.isPrimitiveType(typeMirror) -> {
-                return Type.PrimitiveType(typeMirror)
+                return Type.PrimitiveType(typeMirror, null)
             }
             checkFieldIsEnum(typeMirror) -> {
-                messages.find { it is EnumMessage && it.type.fullClassName == typeMirror.toString() }?.run {
-                    this as EnumMessage
-                    return Type.EnumType(typeMirror, this.fields)
+                val message = findMessage(typeMirror.toString(), messages)
+                if (message is EnumMessage) {
+                    return Type.EnumType(typeMirror, message.type.parentType, message.enumConsts)
                 }
             }
             checkFieldIsList(typeMirror) -> {
                 val argumentOfList = getGenericType(typeMirror)[0]
                 val genericType = getType(argumentOfList)
-                return Type.ListType(typeMirror, genericType)
+                return Type.ListType(typeMirror, genericType.parentType, genericType)
             }
             else -> {
-                messages.find { it is InterfaceMessage && it.type.fullClassName == typeMirror.toString() }?.run {
-                    this as InterfaceMessage
-                    return Type.MessageType(typeMirror)
+                val message = findMessage(typeMirror.toString(), messages)
+                if (message is InterfaceMessage) {
+                    return Type.MessageType(typeMirror, message.type.parentType)
                 }
             }
         }
-        throw IllegalStateException(typeMirror.toString())
+        throw IllegalStateException("Type not found $typeMirror")
+    }
+
+    private fun findMessage(className:String, messages:ArrayList<MessageEntry>):MessageEntry? {
+        messages.forEach {
+            val inChild = findMessage(className, it.childs)
+            if (inChild != null) return inChild
+            if (it.type.fullClassName == className) {
+                return it
+            }
+        }
+        return null
     }
 
     private fun writeClass(fileSpec: FileSpec) {
@@ -187,8 +211,9 @@ class BincoProcessor : AbstractProcessor() {
     }
 
     private fun checkFieldIsEnum(typeMirror: TypeMirror): Boolean {
-        messages.find { it is EnumMessage && it.type.fullClassName == typeMirror.toString() }?.run {
-            return true
+        findMessage(typeMirror.toString(), messages)?.run {
+            if (this is EnumMessage) return true
+            return false
         }
         return false
     }

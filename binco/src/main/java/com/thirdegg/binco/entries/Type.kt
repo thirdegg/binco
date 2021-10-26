@@ -1,25 +1,28 @@
 package com.thirdegg.binco.entries
 
-import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
-import com.squareup.kotlinpoet.TypeName
-import com.squareup.kotlinpoet.asClassName
 import java.lang.IllegalStateException
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeMirror
 import kotlin.reflect.KClass
 
-sealed class Type private constructor(typeMirror: TypeMirror) {
+sealed class Type private constructor(
+    typeMirror: TypeMirror,
+    val parentType: Type?,
+) {
 
     val fullClassName = typeMirror.toString()
     val type: Pair<TypeMirror, KClass<*>?> = Pair(typeMirror, types[fullClassName])
+
+    val className = fullClassName.split(".").last()
+    val pkg = fullClassName.replace(".${this.className}", "")
 
     val escapedClassName = fullClassName.split(".").joinToString("") {
         it[0].uppercaseChar() + it.drop(1)
     }
 
-    val className = fullClassName.split(".").last()
-    val pkg = fullClassName.replace(".${this.className}", "")
+
 
     companion object {
 
@@ -62,15 +65,15 @@ sealed class Type private constructor(typeMirror: TypeMirror) {
         fun isPrimitiveType(type: TypeMirror): Boolean {
             val name = type.toString()
             return name == BOOL || name == BOOL_CLASS
-                || name == BYTE || name == BYTE_CLASS
-                || name == SHORT || name == SHORT_CLASS
-                || name == INT || name == INT_CLASS
-                || name == FLOAT || name == FLOAT_CLASS
-                || name == DOUBLE || name == DOUBLE_CLASS
-                || name == STRING
+                    || name == BYTE || name == BYTE_CLASS
+                    || name == SHORT || name == SHORT_CLASS
+                    || name == INT || name == INT_CLASS
+                    || name == FLOAT || name == FLOAT_CLASS
+                    || name == DOUBLE || name == DOUBLE_CLASS
+                    || name == STRING
         }
 
-        fun getKotlinClassName(javaClassName:String): String {
+        fun getKotlinClassName(javaClassName: String): String {
             return javaClassName.replace("java.util.", "kotlin.collections.")
                 .replace("java.lang.String", "kotlin.String")
         }
@@ -81,7 +84,12 @@ sealed class Type private constructor(typeMirror: TypeMirror) {
                     return this.type.second!!.asClassName()
                 }
                 is EnumType -> {
-                    return ClassName("", this.fullClassName)
+                    return if (this.parentType != null) {
+                        val parentClassName = parentType.getCorrectName(prefix, postfix) as ClassName
+                        ClassName(parentClassName.packageName,"${parentClassName.simpleName}.${prefix}${this.className}${postfix}")
+                    } else {
+                        ClassName(this.pkg, "${prefix}${this.className}${postfix}")
+                    }
                 }
                 is ListType -> {
                     val nameOfGeneric = this.genericType.getCorrectName(prefix, postfix)
@@ -90,14 +98,19 @@ sealed class Type private constructor(typeMirror: TypeMirror) {
                     return list.parameterizedBy(nameOfGeneric)
                 }
                 else -> {
-                    return ClassName(this.pkg, "${prefix}${this.className}${postfix}")
+                    return if (this.parentType != null) {
+                        val parentClassName = parentType.getCorrectName(prefix, postfix) as ClassName
+                        ClassName(parentClassName.packageName,"${parentClassName.simpleName}.${prefix}${this.className}${postfix}")
+                    } else {
+                        ClassName(this.pkg, "${prefix}${this.className}${postfix}")
+                    }
                 }
             }
         }
 
     }
 
-    class PrimitiveType(typeMirror: TypeMirror):Type(typeMirror) {
+    class PrimitiveType(typeMirror: TypeMirror, parentType: Type?) : Type(typeMirror, parentType) {
 
         private fun isBool() = fullClassName == BOOL || fullClassName == BOOL_CLASS
         private fun isByte() = fullClassName == BYTE || fullClassName == BYTE_CLASS
@@ -107,37 +120,33 @@ sealed class Type private constructor(typeMirror: TypeMirror) {
         private fun isDouble() = fullClassName == DOUBLE || fullClassName == DOUBLE_CLASS
         private fun isString() = fullClassName == "java.lang.String"
 
-        override fun getEncodeCode(varName:String): String {
+        override fun getEncodeCode(varName: String): CodeBlock {
             when {
                 isBool() -> {
-                    return """
-                        DecodeUtils.boolToBin(${varName}).forEach {
-                            data.add(it)
-                        }
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("DecodeUtils.boolToBin(${varName}).forEach {")
+                        .addStatement("data.add(it)")
+                        .addStatement("}")
+                        .build()
                 }
                 isByte() -> {
-                    return """
-                        data.add(${varName})
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("data.add(${varName})")
+                        .build()
                 }
                 isShort() -> {
-                    return """
-                        DecodeUtils.shortToBin(${varName}).forEach {
-                            data.add(it)
-                        }
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("DecodeUtils.shortToBin(${varName}).forEach {")
+                        .addStatement("data.add(it)")
+                        .addStatement("}")
+                        .build()
                 }
                 isInt() -> {
-                    return """
-                        DecodeUtils.intToBin(${varName}).forEach {
-                            data.add(it)
-                        }
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("DecodeUtils.intToBin(${varName}).forEach {")
+                        .addStatement("data.add(it)")
+                        .addStatement("}")
+                        .build()
                 }
                 isFloat() -> {
 
@@ -146,42 +155,38 @@ sealed class Type private constructor(typeMirror: TypeMirror) {
 
                 }
                 isString() -> {
-                    return """
-                        DecodeUtils.stringToBin(${varName}).forEach {
-                            data.add(it)
-                        }
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("DecodeUtils.stringToBin(${varName}).forEach {")
+                        .addStatement("data.add(it)")
+                        .addStatement("}")
+                        .build()
                 }
             }
             throw IllegalStateException()
         }
 
-        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): String {
+        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
             when {
                 isBool() -> {
-                    return """
-                        var ${varIteration} = DecodeUtils.binToBool(arr, offset)
-                        offset += 1
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = DecodeUtils.binToBool(arr, offset)")
+                        .addStatement("offset += 1")
+                        .build()
                 }
                 isByte() -> {
 
                 }
                 isShort() -> {
-                    return """
-                        var ${varIteration} = DecodeUtils.binToShort(arr, offset)
-                        offset += 2
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = DecodeUtils.binToShort(arr, offset)")
+                        .addStatement("offset += 2")
+                        .build()
                 }
                 isInt() -> {
-                    return """
-                        var ${varIteration} = DecodeUtils.binToInt(arr, offset)
-                        offset += 4
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = DecodeUtils.binToInt(arr, offset)")
+                        .addStatement("offset += 4")
+                        .build()
                 }
                 isFloat() -> {
 
@@ -190,124 +195,105 @@ sealed class Type private constructor(typeMirror: TypeMirror) {
 
                 }
                 isString() -> {
-                    return """
-                        val size${varIteration} = DecodeUtils.binToInt(arr, offset)
-                        offset += 4
-                        var ${varIteration} = DecodeUtils.binToString(arr, offset, size${varIteration})
-                        offset += size${varIteration}
-                        
-                    """.trimIndent()
+                    return CodeBlock.builder()
+                        .addStatement("val size${varIteration} = DecodeUtils.binToInt(arr, offset)")
+                        .addStatement("offset += 4")
+                        .addStatement("var ${varIteration} = DecodeUtils.binToString(arr, offset, size${varIteration})")
+                        .addStatement("offset += size${varIteration}")
+                        .build()
                 }
             }
             throw IllegalStateException()
         }
     }
 
-    class MessageType(typeMirror: TypeMirror):Type(typeMirror) {
-        override fun getEncodeCode(varName: String): String {
-            return """
-                ${varName}.toBin().apply {
-                    DecodeUtils.intToBin(size).forEach {
-                        data.add(it)
+    class MessageType(typeMirror: TypeMirror, parentType: Type?) : Type(typeMirror, parentType) {
+        override fun getEncodeCode(varName: String): CodeBlock {
+            return CodeBlock.builder()
+                .addStatement("""
+                    ${varName}.toBin().apply {
+                        DecodeUtils.intToBin(size).forEach {
+                            data.add(it)
+                        }
+                        forEach {
+                            data.add(it)
+                        }
                     }
-                    forEach {
-                        data.add(it)
-                    }
-                }
-                
-            """.trimIndent()
+                    
+                """.trimIndent())
+                .build()
         }
 
-        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): String {
-            return """
-                val size${varIteration} = DecodeUtils.binToInt(arr, offset)
-                offset += 4
-                var ${varIteration} = fromBin${escapedClassName}(arr, offset)
-                offset += size${varIteration}
-                
-            """.trimIndent()
-        }
-
-    }
-    class EnumType(typeMirror: TypeMirror, private val fields: ArrayList<EnumField>):Type(typeMirror) {
-        override fun getEncodeCode(varName: String): String {
-            var code = """
-                when (${varName}) {
-                    
-            """.trimIndent()
-
-            fields.forEach {
-                code += """
-                    ${fullClassName}.${it.name} -> { data.add(${it.id}) }
-                    
-                """.trimIndent()
-            }
-
-            code += """
-                    else -> throw Exception("Not found enum value")
-                }
-                
-            """.trimIndent()
-            return code
-        }
-
-        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): String {
-            var code = """
-                var ${varIteration} = when (arr[offset].toInt()) {
-                
-            """.trimIndent()
-
-            fields.forEach {
-                code += """
-                        ${it.id} -> ${fullClassName}.${it.name}
-                    
-                """.trimIndent()
-            }
-
-            code += """
-                else -> throw Exception("Not found enum value")
-            }
-                
-            offset += 1
-                
-            """.trimIndent()
-            return code
+        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
+            return CodeBlock.builder()
+                .addStatement("val size${varIteration} = DecodeUtils.binToInt(arr, offset)")
+                .addStatement("offset += 4")
+                .addStatement("var ${varIteration} = fromBin${escapedClassName}(arr, offset)")
+                .addStatement("offset += size${varIteration}")
+                .build()
         }
 
     }
 
-    class ListType(typeMirror: TypeMirror, val genericType: Type):Type(typeMirror) {
-        override fun getEncodeCode(varName: String): String {
-            return """
-                DecodeUtils.intToBin(${varName}.size).forEach {
-                    data.add(it)
-                }
-                
-                ${varName}.forEach { item ->
-                   ${genericType.getEncodeCode("item")}
-                }
-                
-            """.trimIndent()
+    class EnumType(typeMirror: TypeMirror, parentType: Type?, private val fields: ArrayList<EnumConst>) : Type(typeMirror, parentType) {
+        override fun getEncodeCode(varName: String): CodeBlock {
+            return CodeBlock.builder().addStatement(
+                """
+                    ${varName}.toBin().apply {
+                        forEach {
+                            data.add(it)
+                        }
+                    }
+                    
+                """.trimIndent()
+            ).build()
         }
 
-        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): String {
-            return """
-                
+        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
+            val code = CodeBlock.builder()
+            code.addStatement("var ${varIteration} = when (arr[offset].toInt()) {")
+            fields.forEach {
+                code.addStatement("${it.id} -> ${getCorrectName(prefix, postfix)}.${it.name}")
+            }
+            code.addStatement("""else -> throw Exception("Not found enum value")""")
+            code.addStatement("}")
+            code.addStatement("offset += 1")
+            return code.build()
+        }
+
+    }
+
+    class ListType(typeMirror: TypeMirror, parentType: Type?, val genericType: Type) : Type(typeMirror, parentType) {
+        override fun getEncodeCode(varName: String): CodeBlock {
+            return CodeBlock.builder()
+                .addStatement("""
+                    DecodeUtils.intToBin(${varName}.size).forEach {
+                        data.add(it)
+                    }
+                    ${varName}.forEach { item ->
+                       ${genericType.getEncodeCode("item")}
+                    }
+                """.trimIndent()).build()
+        }
+
+        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
+            val genericName = getKotlinClassName(genericType.getCorrectName(prefix, postfix).toString())
+            return CodeBlock.builder().addStatement("""
                 val size${varIteration} = DecodeUtils.binToInt(arr, offset)
                 offset += 4
                 
-                var $varIteration = ArrayList<${getKotlinClassName(genericType.getCorrectName(prefix, postfix).toString())}>()
+                var $varIteration = ArrayList<${genericName}>()
                 for (i in 0 until size${varIteration}) {
-                   ${genericType.getDecodeCode(varName, "${varIteration}Temp",prefix,postfix)}
+                   ${genericType.getDecodeCode(varName, "${varIteration}Temp", prefix, postfix)}
                    ${varIteration}.add(${varIteration}Temp)
                 }
-                
-            """.trimIndent()
+               
+            """.trimIndent()).build()
         }
 
     }
 
-    abstract fun getEncodeCode(varName:String):String
-    abstract fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String):String
+    abstract fun getEncodeCode(varName: String): CodeBlock
+    abstract fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock
 
 }

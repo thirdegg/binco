@@ -4,12 +4,12 @@ import com.thirdegg.binco.Binco;
 
 import java.util.List;
 
-@Binco(id = 3)
+@Binco(id = 5)
 public interface DataJava {
 
     @Binco.Field(id = 1)
-    SubData getSubData();
+    Data.Status.SubData getSubData();
 
     @Binco.Field(id = 2)
-    List<SubData> getGoogles();
+    List<Data.Status.SubData> getGoogles();
 }

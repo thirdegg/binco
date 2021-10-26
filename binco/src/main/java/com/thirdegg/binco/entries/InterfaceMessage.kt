@@ -1,31 +1,33 @@
 package com.thirdegg.binco.entries
 
+import com.squareup.kotlinpoet.CodeBlock
 import javax.lang.model.type.TypeMirror
 
 class InterfaceMessage(
     id: Int,
     fullClassName: TypeMirror,
-    val fields:ArrayList<InterfaceField>
-): MessageEntry(
+    parentType: Type?,
+    val fields: ArrayList<InterfaceField>
+) : MessageEntry(
     id,
-    Type.MessageType(fullClassName)
+    Type.MessageType(fullClassName, parentType)
 ) {
 
     fun getSortedFields() = fields.sortedBy { it.id }
 
-    fun getEncodeCode(): String {
-        var code = ""
+    override fun getEncodeCode(): CodeBlock {
+        val code = CodeBlock.builder()
         fields.sortedBy { it.id }.forEach {
-            code += it.getEncodeCode()
+            code.add(it.getEncodeCode())
         }
-        return code
+        return code.build()
     }
 
-    fun getDecodeCode(prefix: String, postfix: String): String {
-        var code = ""
+    override fun getDecodeCode(prefix: String, postfix: String): CodeBlock {
+        val code = CodeBlock.builder()
         fields.sortedBy { it.id }.forEachIndexed { i, item ->
-            code += item.getDecodeCode("var${i}", prefix, postfix)
+            code.add(item.getDecodeCode("var${i}", prefix, postfix))
         }
-        return code
+        return code.build()
     }
 }

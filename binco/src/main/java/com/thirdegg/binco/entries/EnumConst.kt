@@ -1,6 +1,6 @@
 package com.thirdegg.binco.entries
 
-class EnumField(
+class EnumConst(
     val id: Int,
-    val name:String
+    val name: String
 )
