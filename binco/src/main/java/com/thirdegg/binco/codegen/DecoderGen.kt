@@ -33,7 +33,6 @@ class DecoderGen(
                     .addParameter("arr", ByteArray::class)
                     .addParameter("offset", Int::class)
                     .returns(message.type.getCorrectName(prefix, postfix))
-                    .addStatement("var offset = offset")
                     .addCode(message.getDecodeCode(prefix, postfix))
                     .addStatement("return var0")
                     .build()

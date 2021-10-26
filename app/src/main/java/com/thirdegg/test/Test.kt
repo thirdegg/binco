@@ -24,10 +24,10 @@ fun main() {
     list.add(-19999)
     val data = DataBin("Test", 9999, DataBin.StatusBin.SubDataBin("Test 2"), DataBin.StatusBin.ERROR_2, list).toMessage()
 
-    printInfo(DataBin.StatusBin.ERROR_2.toMessage())
+    printInfo(DataBin.StatusBin.ERROR.toMessage())
 
 //    val a = (BincoDecoder.decode(data) as DataBin)
-    val a = (BincoDecoder.decode(DataBin.StatusBin.ERROR_2.toMessage()) as DataBin.StatusBin)
+    val a = (BincoDecoder.decode(DataBin.StatusBin.ERROR.toMessage()) as DataBin.StatusBin)
     println(a)
 
 }

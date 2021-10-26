@@ -251,12 +251,7 @@ sealed class Type private constructor(
 
         override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
             val code = CodeBlock.builder()
-            code.addStatement("var ${varIteration} = when (arr[offset].toInt()) {")
-            fields.forEach {
-                code.addStatement("${it.id} -> ${getCorrectName(prefix, postfix)}.${it.name}")
-            }
-            code.addStatement("""else -> throw Exception("Not found enum value")""")
-            code.addStatement("}")
+            code.addStatement("var ${varIteration} = fromBin${escapedClassName}(arr, offset)")
             code.addStatement("offset += 1")
             return code.build()
         }

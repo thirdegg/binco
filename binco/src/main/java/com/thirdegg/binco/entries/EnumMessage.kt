@@ -1,6 +1,7 @@
 package com.thirdegg.binco.entries
 
 import com.squareup.kotlinpoet.CodeBlock
+import com.thirdegg.binco.entries.Type.Companion.getCorrectName
 import javax.lang.model.type.TypeMirror
 
 class EnumMessage(
@@ -20,6 +21,13 @@ class EnumMessage(
     }
 
     override fun getDecodeCode(prefix: String, postfix: String):CodeBlock {
-        return type.getDecodeCode("this", "var0", prefix, postfix)
+        val code = CodeBlock.builder()
+        code.addStatement("var var0 = when (arr[offset].toInt()) {")
+        enumConsts.forEach {
+            code.addStatement("${it.id} -> ${type.getCorrectName(prefix, postfix)}.${it.name}")
+        }
+        code.addStatement("""else -> throw Exception("Not found enum value")""")
+        code.addStatement("}")
+        return code.build()
     }
 }
