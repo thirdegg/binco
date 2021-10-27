@@ -16,18 +16,19 @@ fun printInfo(message:ByteArray) {
 
 fun main() {
 
-    val list = ArrayList<Int>()
-    list.add(1)
-    list.add(1994)
-    list.add(9999)
-    list.add(19999)
-    list.add(-19999)
-    val data = DataBin("Test", 9999, DataBin.StatusBin.SubDataBin("Test 2"), DataBin.StatusBin.ERROR_2, list).toMessage()
-
-    printInfo(DataBin.StatusBin.ERROR.toMessage())
-
-//    val a = (BincoDecoder.decode(data) as DataBin)
-    val a = (BincoDecoder.decode(DataBin.StatusBin.ERROR.toMessage()) as DataBin.StatusBin)
-    println(DataBin.StatusBin.BINCO_ID == a.getBincoId())
+//    val begin = System.currentTimeMillis()
+//    (0..1000000).forEach {
+        val list = ArrayList<Int>()
+        list.add(1)
+        list.add(2)
+        list.add(3)
+        list.add(4)
+        list.add(5)
+        val data =
+            DataBin("Test", 9999, DataBin.StatusBin.SubDataBin("Test 2"), DataBin.StatusBin.ERROR_2, list, DataBin.StatusBin.SubDataBin("Test 2")).toMessage()
+        printInfo(data)
+        println((((BincoDecoder.decode(data) as DataBin).getAny()) as DataBin.StatusBin.SubDataBin).getJkk2())
+//    }
+//    println("Time ${System.currentTimeMillis() - begin}")
 
 }

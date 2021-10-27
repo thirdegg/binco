@@ -20,9 +20,8 @@ class DecoderGen(
                 return FunSpec.builder("fromBin${message.type.escapedClassName}")
                     .addModifiers(KModifier.PRIVATE)
                     .addParameter("arr", ByteArray::class)
-                    .addParameter("offset", Int::class)
+                    .addParameter("offset", ClassName(BincoProcessor.BINCO_PKG, "DecodeUtils.Counter"))
                     .returns(message.type.getCorrectName(prefix, postfix))
-                    .addStatement("var offset = offset")
                     .addCode(message.getDecodeCode(prefix, postfix))
                     .addStatement("return ${prefix}${message.type.className}${postfix}(${message.fields.mapIndexed { i, _ -> "var$i" }.joinToString(",")})")
                     .build()
@@ -31,9 +30,10 @@ class DecoderGen(
                 return FunSpec.builder("fromBin${message.type.escapedClassName}")
                     .addModifiers(KModifier.PRIVATE)
                     .addParameter("arr", ByteArray::class)
-                    .addParameter("offset", Int::class)
+                    .addParameter("offset", ClassName(BincoProcessor.BINCO_PKG, "DecodeUtils.Counter"))
                     .returns(message.type.getCorrectName(prefix, postfix))
                     .addCode(message.getDecodeCode(prefix, postfix))
+                    .addStatement("offset.add(1)")
                     .addStatement("return var0")
                     .build()
             }
@@ -89,11 +89,15 @@ class DecoderGen(
                 }.addFunction(
                         FunSpec.builder("decode")
                             .addParameter("arr", ByteArray::class)
+                            .addParameter(
+                                ParameterSpec
+                                    .builder("offset", ClassName(BincoProcessor.BINCO_PKG, "DecodeUtils.Counter"))
+                                    .defaultValue("DecodeUtils.Counter(0)")
+                                    .build()
+                            )
                             .returns(ClassName(BincoProcessor.BINCO_PKG, "BincoInterface"))
                             .addCode("""
-                                var offset = 0
                                 val messageId = DecodeUtils.binToShort(arr, offset).toInt()
-                                offset  += 2
                                 when (messageId) {
                                 
                             """.trimIndent())
@@ -106,8 +110,7 @@ class DecoderGen(
                                 }
                             """.trimIndent())
                             .build()
-                    )
-                    .build()
+                    ).build()
             ).build()
     }
 }

@@ -160,6 +160,9 @@ class BincoProcessor : AbstractProcessor() {
             Type.isPrimitiveType(typeMirror) -> {
                 return Type.PrimitiveType(typeMirror, null)
             }
+            Type.isAnyType(typeMirror) -> {
+                return Type.AnyMessageType(typeMirror, null)
+            }
             checkFieldIsEnum(typeMirror) -> {
                 val message = findMessage(typeMirror.toString(), messages)
                 if (message is EnumMessage) {

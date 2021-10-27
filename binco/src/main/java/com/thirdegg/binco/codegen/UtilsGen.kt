@@ -1,8 +1,6 @@
 package com.thirdegg.binco.codegen
 
-import com.squareup.kotlinpoet.FileSpec
-import com.squareup.kotlinpoet.FunSpec
-import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.*
 import com.thirdegg.binco.BincoProcessor
 
 class UtilsGen {
@@ -61,22 +59,24 @@ class UtilsGen {
     private fun binToBoolean():FunSpec {
         return FunSpec.builder("binToBool")
             .addParameter("arr", ByteArray::class)
-            .addParameter("offset", Int::class)
+            .addParameter("offset", ClassName("", "Counter"))
             .returns(Boolean::class)
             .addCode("""
-                return arr[offset] == 1.toByte()
+                offset.add(1)
+                return arr[offset.get()] == 1.toByte()
             """.trimIndent()).build()
     }
 
     private fun binToShort():FunSpec {
         return FunSpec.builder("binToShort")
             .addParameter("arr", ByteArray::class)
-            .addParameter("offset", Int::class)
+            .addParameter("offset", ClassName("", "Counter"))
             .returns(Short::class)
             .addCode("""
                 var data:Short = 0.toShort()
-                data = (data + ((arr[offset].toInt() and 0xff) shl 8)).toShort()
-                data = (data + (arr[offset + 1].toInt() and 0xff)).toShort()
+                data = (data + ((arr[offset.get()].toInt() and 0xff) shl 8)).toShort()
+                data = (data + (arr[offset.get() + 1].toInt() and 0xff)).toShort()
+                offset.add(2)
                 return data
             """.trimIndent()).build()
     }
@@ -84,14 +84,15 @@ class UtilsGen {
     private fun binToInt():FunSpec {
         return FunSpec.builder("binToInt")
             .addParameter("arr", ByteArray::class)
-            .addParameter("offset", Int::class)
+            .addParameter("offset", ClassName("", "Counter"))
             .returns(Int::class)
             .addCode("""
                 var data = 0
-                data += (arr[offset].toInt() and 0xff) shl 24
-                data += (arr[offset + 1].toInt() and 0xff) shl 16
-                data += (arr[offset + 2].toInt() and 0xff) shl 8
-                data += (arr[offset + 3].toInt() and 0xff)
+                data += (arr[offset.get()].toInt() and 0xff) shl 24
+                data += (arr[offset.get() + 1].toInt() and 0xff) shl 16
+                data += (arr[offset.get() + 2].toInt() and 0xff) shl 8
+                data += (arr[offset.get() + 3].toInt() and 0xff)
+                offset.add(4)
                 return data
             """.trimIndent()).build()
     }
@@ -99,12 +100,44 @@ class UtilsGen {
     private fun binToString():FunSpec {
         return FunSpec.builder("binToString")
             .addParameter("arr", ByteArray::class)
-            .addParameter("offset", Int::class)
-            .addParameter("size", Int::class)
+            .addParameter("offset", ClassName("", "Counter"))
             .returns(String::class)
             .addCode("""
-                return String(arr, offset, size)
+                val size = DecodeUtils.binToInt(arr, offset)
+                val data = String(arr, offset.get(), size)
+                offset.add(size)
+                return data
             """.trimIndent()).build()
+    }
+
+    private fun createCounter():TypeSpec {
+
+        return TypeSpec.classBuilder("Counter")
+            .primaryConstructor(
+                FunSpec.constructorBuilder()
+                    .addParameter("counter", Int::class.asTypeName())
+                    .build()
+            )
+            .addProperty(
+                PropertySpec.builder("counter", Int::class.asTypeName())
+                    .initializer("counter")
+                    .mutable()
+                    .addModifiers(KModifier.PRIVATE)
+                    .build()
+            )
+            .addFunction(
+                FunSpec.builder("add")
+                    .addParameter(ParameterSpec.builder("count", Int::class).build())
+                    .addStatement("this.counter += count")
+                    .build()
+            )
+            .addFunction(
+                FunSpec.builder("get")
+                    .returns(Int::class)
+                    .addStatement("return this.counter")
+                    .build()
+            )
+            .build()
     }
 
     fun build(): FileSpec {
@@ -119,6 +152,7 @@ class UtilsGen {
                     .addFunction(binToShort())
                     .addFunction(binToInt())
                     .addFunction(binToString())
+                    .addType(createCounter())
                     .build()
             ).build()
     }

@@ -22,7 +22,7 @@ class EnumMessage(
 
     override fun getDecodeCode(prefix: String, postfix: String):CodeBlock {
         val code = CodeBlock.builder()
-        code.addStatement("var var0 = when (arr[offset].toInt()) {")
+        code.addStatement("var var0 = when (arr[offset.get()].toInt()) {")
         enumConsts.forEach {
             code.addStatement("${it.id} -> ${type.getCorrectName(prefix, postfix)}.${it.name}")
         }

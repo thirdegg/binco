@@ -39,6 +39,9 @@ interface Data {
     @Binco.Field(5)
     fun getListOfStrings(): List<Int>
 
+    @Binco.Field(6)
+    fun getAny(): Any
+
 }
 
 

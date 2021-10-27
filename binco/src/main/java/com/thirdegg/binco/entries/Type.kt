@@ -2,6 +2,7 @@ package com.thirdegg.binco.entries
 
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
+import com.thirdegg.binco.BincoProcessor
 import java.lang.IllegalStateException
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeMirror
@@ -46,6 +47,9 @@ sealed class Type private constructor(
 
         private const val STRING = "java.lang.String"
 
+        const val ANY_JAVA = "java.lang.Object"
+        const val ANY_KT = "kotlin.Any"
+
         private val types = mapOf<String, KClass<*>>(
             BOOL to Boolean::class,
             BOOL_CLASS to Boolean::class,
@@ -73,6 +77,11 @@ sealed class Type private constructor(
                     || name == STRING
         }
 
+        fun isAnyType(type: TypeMirror): Boolean {
+            val name = type.toString()
+            return name == ANY_JAVA || name == ANY_KT
+        }
+
         fun getKotlinClassName(javaClassName: String): String {
             return javaClassName.replace("java.util.", "kotlin.collections.")
                 .replace("java.lang.String", "kotlin.String")
@@ -82,6 +91,9 @@ sealed class Type private constructor(
             when (this) {
                 is PrimitiveType -> {
                     return this.type.second!!.asClassName()
+                }
+                is AnyMessageType -> {
+                    return ClassName(BincoProcessor.BINCO_PKG, "BincoInterface")
                 }
                 is EnumType -> {
                     return if (this.parentType != null) {
@@ -170,7 +182,6 @@ sealed class Type private constructor(
                 isBool() -> {
                     return CodeBlock.builder()
                         .addStatement("var ${varIteration} = DecodeUtils.binToBool(arr, offset)")
-                        .addStatement("offset += 1")
                         .build()
                 }
                 isByte() -> {
@@ -179,13 +190,11 @@ sealed class Type private constructor(
                 isShort() -> {
                     return CodeBlock.builder()
                         .addStatement("var ${varIteration} = DecodeUtils.binToShort(arr, offset)")
-                        .addStatement("offset += 2")
                         .build()
                 }
                 isInt() -> {
                     return CodeBlock.builder()
                         .addStatement("var ${varIteration} = DecodeUtils.binToInt(arr, offset)")
-                        .addStatement("offset += 4")
                         .build()
                 }
                 isFloat() -> {
@@ -196,10 +205,7 @@ sealed class Type private constructor(
                 }
                 isString() -> {
                     return CodeBlock.builder()
-                        .addStatement("val size${varIteration} = DecodeUtils.binToInt(arr, offset)")
-                        .addStatement("offset += 4")
-                        .addStatement("var ${varIteration} = DecodeUtils.binToString(arr, offset, size${varIteration})")
-                        .addStatement("offset += size${varIteration}")
+                        .addStatement("var ${varIteration} = DecodeUtils.binToString(arr, offset)")
                         .build()
                 }
             }
@@ -212,9 +218,6 @@ sealed class Type private constructor(
             return CodeBlock.builder()
                 .addStatement("""
                     ${varName}.toBin().apply {
-                        DecodeUtils.intToBin(size).forEach {
-                            data.add(it)
-                        }
                         forEach {
                             data.add(it)
                         }
@@ -226,13 +229,9 @@ sealed class Type private constructor(
 
         override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
             return CodeBlock.builder()
-                .addStatement("val size${varIteration} = DecodeUtils.binToInt(arr, offset)")
-                .addStatement("offset += 4")
                 .addStatement("var ${varIteration} = fromBin${escapedClassName}(arr, offset)")
-                .addStatement("offset += size${varIteration}")
                 .build()
         }
-
     }
 
     class EnumType(typeMirror: TypeMirror, parentType: Type?, private val fields: ArrayList<EnumConst>) : Type(typeMirror, parentType) {
@@ -252,7 +251,6 @@ sealed class Type private constructor(
         override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
             val code = CodeBlock.builder()
             code.addStatement("var ${varIteration} = fromBin${escapedClassName}(arr, offset)")
-            code.addStatement("offset += 1")
             return code.build()
         }
 
@@ -275,17 +273,36 @@ sealed class Type private constructor(
             val genericName = getKotlinClassName(genericType.getCorrectName(prefix, postfix).toString())
             return CodeBlock.builder().addStatement("""
                 val size${varIteration} = DecodeUtils.binToInt(arr, offset)
-                offset += 4
                 
                 var $varIteration = ArrayList<${genericName}>()
                 for (i in 0 until size${varIteration}) {
-                   ${genericType.getDecodeCode(varName, "${varIteration}Temp", prefix, postfix)}
-                   ${varIteration}.add(${varIteration}Temp)
+                   ${genericType.getDecodeCode(varName, "${varIteration}Item", prefix, postfix)}
+                   ${varIteration}.add(${varIteration}Item)
                 }
                
             """.trimIndent()).build()
         }
+    }
 
+    class AnyMessageType(typeMirror: TypeMirror, parentType: Type?) : Type(typeMirror, parentType) {
+        override fun getEncodeCode(varName: String): CodeBlock {
+            return CodeBlock.builder()
+                .addStatement("""
+                    ${varName}.toMessage().apply {
+                        forEach {
+                            data.add(it)
+                        }
+                    }
+                    
+                """.trimIndent())
+                .build()
+        }
+
+        override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
+            return CodeBlock.builder()
+                .addStatement("var ${varIteration} = decode(arr, offset)")
+                .build()
+        }
     }
 
     abstract fun getEncodeCode(varName: String): CodeBlock
