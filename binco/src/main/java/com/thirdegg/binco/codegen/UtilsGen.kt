@@ -20,26 +20,40 @@ class UtilsGen {
         return FunSpec.builder("shortToBin")
             .addParameter("num", Short::class)
             .returns(ByteArray::class)
-            .addCode("""
-                val data = ByteArray(2)
-                data.set(0, (num.toInt() shr 8).toByte())
-                data.set(1, num.toByte())
-                return data
-            """.trimIndent()).build()
+            .addStatement("return ByteBuffer.allocate(2).putShort(num).array()")
+            .build()
     }
 
     private fun intToBinFun():FunSpec {
         return FunSpec.builder("intToBin")
             .addParameter("num", Int::class)
             .returns(ByteArray::class)
-            .addCode("""
-                val data = ByteArray(4)
-                data.set(0, (num shr 24).toByte())
-                data.set(1, (num shr 16).toByte())
-                data.set(2, (num shr 8).toByte())
-                data.set(3, num.toByte())
-                return data
-            """.trimIndent()).build()
+            .addStatement("return ByteBuffer.allocate(4).putInt(num).array()")
+            .build()
+    }
+
+    private fun longToBinFun():FunSpec {
+        return FunSpec.builder("longToBin")
+            .addParameter("num", Long::class)
+            .returns(ByteArray::class)
+            .addStatement("return ByteBuffer.allocate(8).putLong(num).array()")
+            .build()
+    }
+
+    private fun floatToBinFun():FunSpec {
+        return FunSpec.builder("floatToBin")
+            .addParameter("num", Float::class)
+            .returns(ByteArray::class)
+            .addStatement("return ByteBuffer.allocate(4).putFloat(num).array()")
+            .build()
+    }
+
+    private fun doubleToBinFun():FunSpec {
+        return FunSpec.builder("doubleToBin")
+            .addParameter("num", Double::class)
+            .returns(ByteArray::class)
+            .addStatement("return ByteBuffer.allocate(8).putDouble(num).array()")
+            .build()
     }
 
     private fun stringToBinFun():FunSpec {
@@ -61,10 +75,10 @@ class UtilsGen {
             .addParameter("arr", ByteArray::class)
             .addParameter("offset", ClassName("", "Counter"))
             .returns(Boolean::class)
-            .addCode("""
-                offset.add(1)
-                return arr[offset.get()] == 1.toByte()
-            """.trimIndent()).build()
+            .addStatement("val result = arr[offset.get()] == 1.toByte()")
+            .addStatement("offset.add(1)")
+            .addStatement("return result")
+            .build()
     }
 
     private fun binToShort():FunSpec {
@@ -72,29 +86,55 @@ class UtilsGen {
             .addParameter("arr", ByteArray::class)
             .addParameter("offset", ClassName("", "Counter"))
             .returns(Short::class)
-            .addCode("""
-                var data:Short = 0.toShort()
-                data = (data + ((arr[offset.get()].toInt() and 0xff) shl 8)).toShort()
-                data = (data + (arr[offset.get() + 1].toInt() and 0xff)).toShort()
-                offset.add(2)
-                return data
-            """.trimIndent()).build()
+            .addStatement("val num = ByteBuffer.wrap(arr, offset.get(), 2).short")
+            .addStatement("offset.add(2)")
+            .addStatement("return num")
+            .build()
     }
 
     private fun binToInt():FunSpec {
+
         return FunSpec.builder("binToInt")
             .addParameter("arr", ByteArray::class)
             .addParameter("offset", ClassName("", "Counter"))
             .returns(Int::class)
-            .addCode("""
-                var data = 0
-                data += (arr[offset.get()].toInt() and 0xff) shl 24
-                data += (arr[offset.get() + 1].toInt() and 0xff) shl 16
-                data += (arr[offset.get() + 2].toInt() and 0xff) shl 8
-                data += (arr[offset.get() + 3].toInt() and 0xff)
-                offset.add(4)
-                return data
-            """.trimIndent()).build()
+            .addStatement("val num = ByteBuffer.wrap(arr, offset.get(), 4).int")
+            .addStatement("offset.add(4)")
+            .addStatement("return num")
+            .build()
+    }
+
+    private fun binToLong():FunSpec {
+        return FunSpec.builder("binToLong")
+            .addParameter("arr", ByteArray::class)
+            .addParameter("offset", ClassName("", "Counter"))
+            .returns(Long::class)
+            .addStatement("val num = ByteBuffer.wrap(arr, offset.get(), 8).long")
+            .addStatement("offset.add(8)")
+            .addStatement("return num")
+            .build()
+    }
+
+    private fun binToFloat():FunSpec {
+        return FunSpec.builder("binToFloat")
+            .addParameter("arr", ByteArray::class)
+            .addParameter("offset", ClassName("", "Counter"))
+            .returns(Float::class)
+            .addStatement("val num = ByteBuffer.wrap(arr, offset.get(), 4).float")
+            .addStatement("offset.add(4)")
+            .addStatement("return num")
+            .build()
+    }
+
+    private fun binToDouble():FunSpec {
+        return FunSpec.builder("binToDouble")
+            .addParameter("arr", ByteArray::class)
+            .addParameter("offset", ClassName("", "Counter"))
+            .returns(Double::class)
+            .addStatement("val num = ByteBuffer.wrap(arr, offset.get(), 8).double")
+            .addStatement("offset.add(8)")
+            .addStatement("return num")
+            .build()
     }
 
     private fun binToString():FunSpec {
@@ -142,15 +182,22 @@ class UtilsGen {
 
     fun build(): FileSpec {
         return FileSpec.builder(BincoProcessor.BINCO_PKG, "DecodeUtils")
+            .addImport("java.nio", "ByteBuffer")
             .addType(
                 TypeSpec.objectBuilder("DecodeUtils")
                     .addFunction(booleanToBinFun())
                     .addFunction(shortToBinFun())
                     .addFunction(intToBinFun())
+                    .addFunction(longToBinFun())
+                    .addFunction(floatToBinFun())
+                    .addFunction(doubleToBinFun())
                     .addFunction(stringToBinFun())
                     .addFunction(binToBoolean())
                     .addFunction(binToShort())
                     .addFunction(binToInt())
+                    .addFunction(binToLong())
+                    .addFunction(binToFloat())
+                    .addFunction(binToDouble())
                     .addFunction(binToString())
                     .addType(createCounter())
                     .build()

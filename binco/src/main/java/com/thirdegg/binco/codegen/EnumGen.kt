@@ -39,33 +39,19 @@ class EnumGen(
         }
 
         private fun toBin(message: EnumMessage, prefix: String, postfix: String): FunSpec {
-            var code = """
-            when (this) {
-                
-        """.trimIndent()
-
-            message.enumConsts.forEach {
-                code += """
-                    ${message.type.getCorrectName(prefix, postfix)}.${it.name} -> { data.add(${it.id}) }
-                    
-                """.trimIndent()
-            }
-
-            code += """
-                else -> throw Exception("Not found enum value")
-            }
-            
-        """.trimIndent()
-
             return FunSpec.builder("toBin")
                 .addModifiers(KModifier.OVERRIDE)
                 .returns(ByteArray::class)
                 .addStatement("val data = ArrayList<Byte>()")
-                .addCode(code)
+                .beginControlFlow("when (this)").apply {
+                    message.enumConsts.forEach {
+                        addStatement("${message.type.getCorrectName(prefix, postfix)}.${it.name} -> { data.add(${it.id}) }")
+                    }
+                }
+                .addStatement("else -> throw Exception(\"Not found enum value\")")
+                .endControlFlow()
                 .addStatement("return data.toByteArray()")
                 .build()
-
-
         }
 
         private fun toMessage(message: EnumMessage): FunSpec {
@@ -73,19 +59,13 @@ class EnumGen(
                 .addModifiers(KModifier.OVERRIDE)
                 .returns(ByteArray::class)
                 .addStatement("val data = ArrayList<Byte>()")
-                .addStatement("""
-                    DecodeUtils.shortToBin(${message.id}.toShort()).forEach {
-                        data.add(it)
-                    }
-                    
-                    toBin().forEach {
-                        data.add(it)
-                    }
-                    
-                    return data.toByteArray()
-                    
-                """.trimIndent()
-                )
+                .beginControlFlow("DecodeUtils.shortToBin(${message.id}.toShort()).forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
+                .beginControlFlow("toBin().forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
+                .addStatement("return data.toByteArray()")
                 .build()
 
         }

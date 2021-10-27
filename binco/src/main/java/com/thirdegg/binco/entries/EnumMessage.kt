@@ -26,7 +26,7 @@ class EnumMessage(
         enumConsts.forEach {
             code.addStatement("${it.id} -> ${type.getCorrectName(prefix, postfix)}.${it.name}")
         }
-        code.addStatement("""else -> throw Exception("Not found enum value")""")
+        code.addStatement("else -> throw Exception(\"Not found enum value\")")
         code.addStatement("}")
         return code.build()
     }

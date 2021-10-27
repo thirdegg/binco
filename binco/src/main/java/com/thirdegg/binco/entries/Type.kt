@@ -23,8 +23,6 @@ sealed class Type private constructor(
         it[0].uppercaseChar() + it.drop(1)
     }
 
-
-
     companion object {
 
         private const val BOOL = "boolean"
@@ -38,6 +36,9 @@ sealed class Type private constructor(
 
         private const val INT = "int"
         private const val INT_CLASS = "java.lang.Integer"
+
+        private const val LONG = "long"
+        private const val LONG_CLASS = "java.lang.Long"
 
         private const val FLOAT = "float"
         private const val FLOAT_CLASS = "java.lang.Float"
@@ -59,6 +60,8 @@ sealed class Type private constructor(
             SHORT_CLASS to Short::class,
             INT to Int::class,
             INT_CLASS to Int::class,
+            LONG to Long::class,
+            LONG_CLASS to Long::class,
             FLOAT to Float::class,
             FLOAT_CLASS to Float::class,
             DOUBLE to Double::class,
@@ -72,6 +75,7 @@ sealed class Type private constructor(
                     || name == BYTE || name == BYTE_CLASS
                     || name == SHORT || name == SHORT_CLASS
                     || name == INT || name == INT_CLASS
+                    || name == LONG || name == LONG_CLASS
                     || name == FLOAT || name == FLOAT_CLASS
                     || name == DOUBLE || name == DOUBLE_CLASS
                     || name == STRING
@@ -128,6 +132,7 @@ sealed class Type private constructor(
         private fun isByte() = fullClassName == BYTE || fullClassName == BYTE_CLASS
         private fun isShort() = fullClassName == SHORT || fullClassName == SHORT_CLASS
         private fun isInt() = fullClassName == INT || fullClassName == INT_CLASS
+        private fun isLong() = fullClassName == LONG || fullClassName == LONG_CLASS
         private fun isFloat() = fullClassName == FLOAT || fullClassName == FLOAT_CLASS
         private fun isDouble() = fullClassName == DOUBLE || fullClassName == DOUBLE_CLASS
         private fun isString() = fullClassName == "java.lang.String"
@@ -136,9 +141,9 @@ sealed class Type private constructor(
             when {
                 isBool() -> {
                     return CodeBlock.builder()
-                        .addStatement("DecodeUtils.boolToBin(${varName}).forEach {")
+                        .beginControlFlow("DecodeUtils.boolToBin(${varName}).forEach")
                         .addStatement("data.add(it)")
-                        .addStatement("}")
+                        .endControlFlow()
                         .build()
                 }
                 isByte() -> {
@@ -148,29 +153,44 @@ sealed class Type private constructor(
                 }
                 isShort() -> {
                     return CodeBlock.builder()
-                        .addStatement("DecodeUtils.shortToBin(${varName}).forEach {")
+                        .beginControlFlow("DecodeUtils.shortToBin(${varName}).forEach")
                         .addStatement("data.add(it)")
-                        .addStatement("}")
+                        .endControlFlow()
                         .build()
                 }
                 isInt() -> {
                     return CodeBlock.builder()
-                        .addStatement("DecodeUtils.intToBin(${varName}).forEach {")
+                        .beginControlFlow("DecodeUtils.intToBin(${varName}).forEach")
                         .addStatement("data.add(it)")
-                        .addStatement("}")
+                        .endControlFlow()
+                        .build()
+                }
+                isLong() -> {
+                    return CodeBlock.builder()
+                        .beginControlFlow("DecodeUtils.longToBin(${varName}).forEach")
+                        .addStatement("data.add(it)")
+                        .endControlFlow()
                         .build()
                 }
                 isFloat() -> {
-
+                    return CodeBlock.builder()
+                        .beginControlFlow("DecodeUtils.floatToBin(${varName}).forEach")
+                        .addStatement("data.add(it)")
+                        .endControlFlow()
+                        .build()
                 }
                 isDouble() -> {
-
+                    return CodeBlock.builder()
+                        .beginControlFlow("DecodeUtils.doubleToBin(${varName}).forEach")
+                        .addStatement("data.add(it)")
+                        .endControlFlow()
+                        .build()
                 }
                 isString() -> {
                     return CodeBlock.builder()
-                        .addStatement("DecodeUtils.stringToBin(${varName}).forEach {")
+                        .beginControlFlow("DecodeUtils.stringToBin(${varName}).forEach")
                         .addStatement("data.add(it)")
-                        .addStatement("}")
+                        .endControlFlow()
                         .build()
                 }
             }
@@ -185,7 +205,10 @@ sealed class Type private constructor(
                         .build()
                 }
                 isByte() -> {
-
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = arr[offset.get()]")
+                        .addStatement("offset.add(1)")
+                        .build()
                 }
                 isShort() -> {
                     return CodeBlock.builder()
@@ -197,11 +220,20 @@ sealed class Type private constructor(
                         .addStatement("var ${varIteration} = DecodeUtils.binToInt(arr, offset)")
                         .build()
                 }
+                isLong() -> {
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = DecodeUtils.binToLong(arr, offset)")
+                        .build()
+                }
                 isFloat() -> {
-
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = DecodeUtils.binToFloat(arr, offset)")
+                        .build()
                 }
                 isDouble() -> {
-
+                    return CodeBlock.builder()
+                        .addStatement("var ${varIteration} = DecodeUtils.binToDouble(arr, offset)")
+                        .build()
                 }
                 isString() -> {
                     return CodeBlock.builder()
@@ -216,14 +248,9 @@ sealed class Type private constructor(
     class MessageType(typeMirror: TypeMirror, parentType: Type?) : Type(typeMirror, parentType) {
         override fun getEncodeCode(varName: String): CodeBlock {
             return CodeBlock.builder()
-                .addStatement("""
-                    ${varName}.toBin().apply {
-                        forEach {
-                            data.add(it)
-                        }
-                    }
-                    
-                """.trimIndent())
+                .beginControlFlow("${varName}.toBin().forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
                 .build()
         }
 
@@ -236,16 +263,11 @@ sealed class Type private constructor(
 
     class EnumType(typeMirror: TypeMirror, parentType: Type?, private val fields: ArrayList<EnumConst>) : Type(typeMirror, parentType) {
         override fun getEncodeCode(varName: String): CodeBlock {
-            return CodeBlock.builder().addStatement(
-                """
-                    ${varName}.toBin().apply {
-                        forEach {
-                            data.add(it)
-                        }
-                    }
-                    
-                """.trimIndent()
-            ).build()
+            return CodeBlock.builder()
+                .beginControlFlow("${varName}.toBin().forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
+                .build()
         }
 
         override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
@@ -259,42 +281,34 @@ sealed class Type private constructor(
     class ListType(typeMirror: TypeMirror, parentType: Type?, val genericType: Type) : Type(typeMirror, parentType) {
         override fun getEncodeCode(varName: String): CodeBlock {
             return CodeBlock.builder()
-                .addStatement("""
-                    DecodeUtils.intToBin(${varName}.size).forEach {
-                        data.add(it)
-                    }
-                    ${varName}.forEach { item ->
-                       ${genericType.getEncodeCode("item")}
-                    }
-                """.trimIndent()).build()
+                .beginControlFlow("DecodeUtils.intToBin(${varName}.size).forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
+                .beginControlFlow("${varName}.forEach")
+                .addStatement("${genericType.getEncodeCode("it")}")
+                .endControlFlow()
+                .build()
         }
 
         override fun getDecodeCode(varName: String, varIteration: String, prefix: String, postfix: String): CodeBlock {
             val genericName = getKotlinClassName(genericType.getCorrectName(prefix, postfix).toString())
-            return CodeBlock.builder().addStatement("""
-                val size${varIteration} = DecodeUtils.binToInt(arr, offset)
-                
-                var $varIteration = ArrayList<${genericName}>()
-                for (i in 0 until size${varIteration}) {
-                   ${genericType.getDecodeCode(varName, "${varIteration}Item", prefix, postfix)}
-                   ${varIteration}.add(${varIteration}Item)
-                }
-               
-            """.trimIndent()).build()
+            return CodeBlock.builder()
+                .addStatement("val size${varIteration} = DecodeUtils.binToInt(arr, offset)")
+                .addStatement("var $varIteration = ArrayList<${genericName}>()")
+                .beginControlFlow("for (i in 0 until size${varIteration})")
+                .addStatement("${genericType.getDecodeCode(varName, "${varIteration}Item", prefix, postfix)}")
+                .addStatement("${varIteration}.add(${varIteration}Item)")
+                .endControlFlow()
+                .build()
         }
     }
 
     class AnyMessageType(typeMirror: TypeMirror, parentType: Type?) : Type(typeMirror, parentType) {
         override fun getEncodeCode(varName: String): CodeBlock {
             return CodeBlock.builder()
-                .addStatement("""
-                    ${varName}.toMessage().apply {
-                        forEach {
-                            data.add(it)
-                        }
-                    }
-                    
-                """.trimIndent())
+                .beginControlFlow("${varName}.toMessage().forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
                 .build()
         }
 

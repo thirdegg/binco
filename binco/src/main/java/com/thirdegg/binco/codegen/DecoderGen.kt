@@ -47,24 +47,7 @@ class DecoderGen(
         val list = ArrayList<String>()
         messages.forEach {
             list.addAll(collectDecodeMessageCasesList(it.childs))
-            when (it) {
-                is InterfaceMessage -> {
-                    list.add("""
-                        ${it.id} -> {
-                            return fromBin${it.type.escapedClassName}(arr, offset)
-                        }
-                        
-                    """.trimIndent())
-                }
-                is EnumMessage -> {
-                    list.add("""
-                        ${it.id} -> {
-                            return fromBin${it.type.escapedClassName}(arr, offset)
-                        }
-                        
-                    """.trimIndent())
-                }
-            }
+            list.add("${it.id} -> {return fromBin${it.type.escapedClassName}(arr, offset)}")
         }
         return list
     }
@@ -96,19 +79,15 @@ class DecoderGen(
                                     .build()
                             )
                             .returns(ClassName(BincoProcessor.BINCO_PKG, "BincoInterface"))
-                            .addCode("""
-                                val messageId = DecodeUtils.binToShort(arr, offset).toInt()
-                                when (messageId) {
-                                
-                            """.trimIndent())
+                            .addStatement("val messageId = DecodeUtils.binToShort(arr, offset).toInt()")
+                            .beginControlFlow("when (messageId)")
                             .apply {
                                 collectDecodeMessageCasesList(messages).forEach {
-                                    addCode(it)
+                                    addStatement(it)
                                 }
-                            }.addCode("""
-                                    else -> throw Exception("Message not found")
-                                }
-                            """.trimIndent())
+                            }
+                            .addStatement("else -> throw Exception(\"Message not found\")")
+                            .endControlFlow()
                             .build()
                     ).build()
             ).build()

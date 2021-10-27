@@ -52,20 +52,13 @@ class ClassGen(
                 .addModifiers(KModifier.OVERRIDE)
                 .returns(ByteArray::class)
                 .addStatement("val data = ArrayList<Byte>()")
-                .addStatement(
-                    """
-                DecodeUtils.shortToBin(${message.id}.toShort()).forEach {
-                    data.add(it)
-                }
-                
-                toBin().forEach {
-                    data.add(it)
-                }
-                
-                return data.toByteArray()
-                
-            """.trimIndent()
-                )
+                .beginControlFlow("DecodeUtils.shortToBin(${message.id}.toShort()).forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
+                .beginControlFlow("toBin().forEach")
+                .addStatement("data.add(it)")
+                .endControlFlow()
+                .addStatement("return data.toByteArray()")
                 .build()
         }
 
@@ -88,12 +81,8 @@ class ClassGen(
                         )
                         addFunction(
                             FunSpec.builder(it.getterMethodName)
-                                .addCode(
-                                    """
-                                    return ${it.getFieldName()}
-                                    
-                                """.trimIndent()
-                                ).returns(it.type.getCorrectName(prefix, postfix))
+                                .addStatement("return ${it.getFieldName()}")
+                                .returns(it.type.getCorrectName(prefix, postfix))
                                 .build()
                         )
                     }

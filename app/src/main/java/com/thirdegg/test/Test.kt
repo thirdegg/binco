@@ -1,6 +1,9 @@
 package com.thirdegg.test
 
+import com.thirdegg.binco.Binco
 import com.thirdegg.binco.BincoDecoder
+
+@Binco.Props.GenNameRule("(.*?)Bin","")
 
 fun printInfo(message:ByteArray) {
     println("Bytes:")
@@ -15,6 +18,7 @@ fun printInfo(message:ByteArray) {
 }
 
 fun main() {
+
 
 //    val begin = System.currentTimeMillis()
 //    (0..1000000).forEach {
