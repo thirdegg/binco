@@ -34,7 +34,7 @@ class BincoProcessor : AbstractProcessor() {
             return false
         }
 
-        roundEnv.getElementsAnnotatedWithAny(setOf(Binco::class.java)).forEach { element ->
+        roundEnv.getElementsAnnotatedWith(Binco::class.java).forEach { element ->
 
             if (element.kind == ElementKind.INTERFACE) {
 
@@ -86,7 +86,7 @@ class BincoProcessor : AbstractProcessor() {
             return false
         }
 
-        roundEnv.getElementsAnnotatedWithAny(setOf(Binco.Field::class.java)).forEach { element ->
+        roundEnv.getElementsAnnotatedWith(Binco.Field::class.java).forEach { element ->
 
             if (element.kind == ElementKind.METHOD) {
                 element as ExecutableElement
