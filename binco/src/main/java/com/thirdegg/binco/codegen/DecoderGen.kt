@@ -23,7 +23,9 @@ class DecoderGen(
                     .addParameter("offset", ClassName(BincoProcessor.BINCO_PKG, "DecodeUtils.Counter"))
                     .returns(message.type.getCorrectName(prefix, postfix))
                     .addCode(message.getDecodeCode(prefix, postfix))
-                    .addStatement("return ${prefix}${message.type.className}${postfix}(${message.fields.mapIndexed { i, _ -> "var$i" }.joinToString(",")})")
+                    .addStatement("return ${prefix}${message.type.className}${postfix}(")
+                    .addStatement(message.fields.mapIndexed { i, _ -> "var$i" }.joinToString(","))
+                    .addStatement(")")
                     .build()
             }
             is EnumMessage -> {
